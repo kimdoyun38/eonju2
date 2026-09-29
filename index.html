@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>수행도우미 - 캘린더형 수행평가 일정 관리</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Google Fonts: Noto Sans KR & Lexend -->
+  <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@500;600;700&family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Noto Sans KR', 'sans-serif'],
+            lexend: ['Lexend', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#f0f7ff',
+              100: '#e0effe',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      font-family: 'Noto Sans KR', sans-serif;
+      background-color: #f8fafc;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    .completed-todo {
+      text-decoration: line-through;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+
+  <!-- 헤더 Navbar -->
+  <header class="bg-white/90 backdrop-blur-md border-b border-slate-200 sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
+          <i class="fa-solid fa-graduation-cap text-lg"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent font-lexend">수행도우미</h1>
+          <p class="text-xs text-slate-500 font-medium">스마트한 수행평가 일정 & 할 일 관리</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-2 sm:space-x-4">
+        <button id="demoDataBtn" onclick="loadDemoData()" class="px-3 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-all border border-blue-200 flex items-center gap-1.5">
+          <i class="fa-solid fa-wand-magic-sparkles"></i>
+          <span>예시 데이터 채우기</span>
+        </button>
+        <button onclick="clearAllData()" class="px-3 py-1.5 text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-all border border-rose-200 flex items-center gap-1.5">
+          <i class="fa-solid fa-trash-can"></i>
+          <span>전체 삭제</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 메인 컨테이너 -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+    <!-- 좌측: 수행평가 입력 & 관리 폼 (lg:grid-cols-4) -->
+    <section class="lg:col-span-4 flex flex-col space-y-5">
+      
+      <!-- 입력 카트 -->
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 transition-all">
+        <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+          <div class="flex items-center gap-2">
+            <span id="formModeIcon" class="w-7 h-7 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center text-xs">
+              <i class="fa-solid fa-pen-to-square"></i>
+            </span>
+            <h2 id="formTitle" class="font-bold text-slate-800 text-base">수행평가 추가</h2>
+          </div>
+          <button id="cancelEditBtn" onclick="resetForm()" class="hidden text-xs text-slate-400 hover:text-slate-600 px-2 py-1 rounded bg-slate-100">
+            취소
+          </button>
+        </div>
+
+        <form id="taskForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
+          <input type="hidden" id="editTaskId" value="">
+
+          <!-- 1. 과목 선택 -->
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-2">1. 과목 선택 <span class="text-rose-500">*</span></label>
+            <div id="subjectChips" class="grid grid-cols-5 gap-1.5">
+              <!-- JS로 10개 과목 버튼 동적 생성 -->
+            </div>
+            <input type="hidden" id="selectedSubject" required>
+          </div>
+
+          <!-- 2. 수행평가 제목 -->
+          <div>
+            <label for="taskTitle" class="block text-xs font-bold text-slate-600 mb-1">2. 수행평가 제목 <span class="text-rose-500">*</span></label>
+            <input type="text" id="taskTitle" required placeholder="예: 조선시대 사회상 보고서 제출"
+              class="w-full text-sm px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+          </div>
+
+          <!-- 3. 날짜 입력 -->
+          <div>
+            <label for="taskDate" class="block text-xs font-bold text-slate-600 mb-1">3. 평가 / 마감 날짜 <span class="text-rose-500">*</span></label>
+            <input type="date" id="taskDate" required
+              class="w-full text-sm px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700">
+          </div>
+
+          <!-- 4. 할 일(To-Do) 등록 -->
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">4. 대비를 위한 할 일 (선택)</label>
+            <div class="flex gap-2 mb-2">
+              <input type="text" id="todoInput" placeholder="할 일 입력 후 추가 버튼 클릭" onkeydown="if(event.key==='Enter'){event.preventDefault(); addTodoItem();}"
+                class="flex-1 text-xs px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+              <button type="button" onclick="addTodoItem()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-all flex items-center gap-1">
+                <i class="fa-solid fa-plus"></i> 추가
+              </button>
+            </div>
+            <!-- 할 일 리스트 -->
+            <ul id="todoList" class="space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar">
+              <!-- 동적 생성 -->
+            </ul>
+          </div>
+
+          <!-- 제출 버튼 -->
+          <button type="submit" id="submitBtn" class="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold rounded-xl shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2 text-sm">
+            <i class="fa-solid fa-calendar-check"></i>
+            <span id="submitBtnText">표로 정리 (달력 반영)</span>
+          </button>
+        </form>
+      </div>
+
+      <!-- 등록된 수행평가 전체 리스트 (수정/삭제 전용 목록) -->
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex-1 flex flex-col">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+            <i class="fa-solid fa-list-check text-blue-500"></i>
+            <span>등록된 수행평가 목록</span>
+            <span id="taskCountBadge" class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-600">0</span>
+          </h3>
+        </div>
+
+        <div id="taskListContainer" class="flex-1 overflow-y-auto custom-scrollbar space-y-2.5 max-h-[380px] pr-1">
+          <!-- 등록된 항목들 카드 생성 -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- 우측: AI 달력 뷰 및 D-day 세부현황 (lg:grid-cols-8) -->
+    <section class="lg:col-span-8 flex flex-col space-y-5">
+      
+      <!-- 달력 카드 -->
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col">
+        
+        <!-- 달력 헤더 (월 이동) -->
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-2">
+            <h2 id="calendarTitle" class="text-xl font-extrabold text-slate-800 font-lexend">2026년 10월</h2>
+            <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-500">달력 표</span>
+          </div>
+
+          <div class="flex items-center gap-1.5">
+            <button onclick="changeMonth(-1)" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-xs transition-all">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <button onclick="goToday()" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-all">
+              오늘
+            </button>
+            <button onclick="changeMonth(1)" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-xs transition-all">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- 달력 표 그리드 -->
+        <div class="w-full overflow-x-auto">
+          <div class="min-w-[640px]">
+            <!-- 요일 헤더 -->
+            <div class="grid grid-cols-7 gap-1 mb-1 text-center">
+              <div class="py-1.5 text-xs font-bold text-rose-500 bg-rose-50/50 rounded-lg">일</div>
+              <div class="py-1.5 text-xs font-bold text-slate-600 bg-slate-50 rounded-lg">월</div>
+              <div class="py-1.5 text-xs font-bold text-slate-600 bg-slate-50 rounded-lg">화</div>
+              <div class="py-1.5 text-xs font-bold text-slate-600 bg-slate-50 rounded-lg">수</div>
+              <div class="py-1.5 text-xs font-bold text-slate-600 bg-slate-50 rounded-lg">목</div>
+              <div class="py-1.5 text-xs font-bold text-slate-600 bg-slate-50 rounded-lg">금</div>
+              <div class="py-1.5 text-xs font-bold text-blue-500 bg-blue-50/50 rounded-lg">토</div>
+            </div>
+
+            <!-- 날짜 셀 그리드 -->
+            <div id="calendarGrid" class="grid grid-cols-7 gap-1">
+              <!-- JS로 35~42개 날짜 셀 생성 -->
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 과목별 D-Day 요약 카드 -->
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80">
+        <h3 class="font-bold text-slate-800 text-sm mb-3 flex items-center gap-2">
+          <i class="fa-solid fa-clock text-indigo-500"></i>
+          <span>다가오는 수행평가 D-Day</span>
+        </h3>
+        <div id="ddayContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <!-- D-Day 카드 동적 생성 -->
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- 상세/수정용 모달 (Alert 대신 커스텀 팝업) -->
+  <div id="detailModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-100 transform transition-all">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+        <div class="flex items-center gap-2">
+          <span id="modalSubjectBadge" class="px-2.5 py-1 rounded-lg text-xs font-bold">과목</span>
+          <h3 id="modalTitle" class="font-bold text-slate-800 text-base">수행평가 제목</h3>
+        </div>
+        <button onclick="closeModal()" class="w-7 h-7 text-slate-400 hover:text-slate-600 rounded-lg flex items-center justify-center">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <span class="text-xs font-bold text-slate-400 block mb-1">마감 날짜</span>
+          <p id="modalDate" class="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
+            <i class="fa-regular fa-calendar text-slate-400"></i> 2026-10-14
+          </p>
+        </div>
+
+        <div>
+          <span class="text-xs font-bold text-slate-400 block mb-1">대비 할 일 (체크리스트)</span>
+          <div id="modalTodoList" class="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+            <!-- 할일 체크박스 목록 -->
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-6 flex items-center justify-end space-x-2 pt-3 border-t border-slate-100">
+        <button id="modalEditBtn" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5">
+          <i class="fa-solid fa-pen"></i> 수정
+        </button>
+        <button id="modalDeleteBtn" class="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5">
+          <i class="fa-solid fa-trash-can"></i> 삭제
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 푸터 -->
+  <footer class="bg-white border-t border-slate-200 py-4 mt-auto">
+    <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-400">
+      &copy; 수행도우미 - AI 기반 학생 수행평가 달력 정리 서비스
+    </div>
+  </footer>
+
+  <!-- 자바스크립트 로직 -->
+  <script>
+    // 10개 과목 및 파스텔 브라이트 색상 매핑
+    const SUBJECTS = [
+      { name: '국어', bg: '#FFE5E7', text: '#D63348', border: '#FFB3B8' },
+      { name: '수학', bg: '#E3F2FD', text: '#1976D2', border: '#90CAF9' },
+      { name: '영어', bg: '#FFFDE7', text: '#F57F17', border: '#FFF59D' },
+      { name: '사회', bg: '#FFF3E0', text: '#E65100', border: '#FFCC80' },
+      { name: '과학', bg: '#E8F5E9', text: '#2E7D32', border: '#A5D6A7' },
+      { name: '가정', bg: '#F3E5F5', text: '#7B1FA2', border: '#CE93D8' },
+      { name: '기술', bg: '#E0F2F1', text: '#00695C', border: '#80CBC4' },
+      { name: '체육', bg: '#E0F7FA', text: '#00838F', border: '#80DEEA' },
+      { name: '역사', bg: '#FFF8E1', text: '#FF8F00', border: '#FFE082' },
+      { name: '한문', bg: '#E8EAF6', text: '#283593', border: '#9FA8DA' }
+    ];
+
+    // 상태 관리
+    let tasks = [];
+    let currentTodoItems = [];
+    let currentDate = new Date(2026, 9, 1); // 기본 2026년 10월
+    let activeModalTaskId = null;
+
+    // 초기화
+    window.addEventListener('DOMContentLoaded', () => {
+      renderSubjectChips();
+      loadLocalStorage();
+      renderCalendar();
+      renderTaskList();
+      renderDDayCards();
+    });
+
+    // 1. 과목 칩 생성
+    function renderSubjectChips() {
+      const container = document.getElementById('subjectChips');
+      container.innerHTML = SUBJECTS.map(subj => `
+        <button type="button" onclick="selectSubject('${subj.name}')" id="chip-${subj.name}"
+          class="subject-chip px-2 py-2 rounded-xl text-xs font-bold transition-all border text-center flex flex-col items-center justify-center gap-1 hover:scale-[1.03]"
+          style="background-color: ${subj.bg}; color: ${subj.text}; border-color: ${subj.border};">
+          <span>${subj.name}</span>
+        </button>
+      `).join('');
+    }
+
+    function selectSubject(subjectName) {
+      document.getElementById('selectedSubject').value = subjectName;
+      document.querySelectorAll('.subject-chip').forEach(chip => {
+        chip.classList.remove('ring-2', 'ring-offset-1', 'ring-blue-500', 'scale-[1.05]');
+      });
+      const selectedChip = document.getElementById(`chip-${subjectName}`);
+      if (selectedChip) {
+        selectedChip.classList.add('ring-2', 'ring-offset-1', 'ring-blue-500', 'scale-[1.05]');
+      }
+    }
+
+    // 2. 임시 To-Do 아이템 등록
+    function addTodoItem() {
+      const input = document.getElementById('todoInput');
+      const val = input.value.trim();
+      if (!val) return;
+
+      currentTodoItems.push({ id: Date.now().toString(), text: val, completed: false });
+      input.value = '';
+      renderFormTodoList();
+    }
+
+    function removeTodoItem(id) {
+      currentTodoItems = currentTodoItems.filter(item => item.id !== id);
+      renderFormTodoList();
+    }
+
+    function renderFormTodoList() {
+      const ul = document.getElementById('todoList');
+      ul.innerHTML = currentTodoItems.map(item => `
+        <li class="flex items-center justify-between bg-slate-50 border border-slate-200/60 px-2.5 py-1.5 rounded-lg text-xs">
+          <span class="text-slate-700 truncate">${item.text}</span>
+          <button type="button" onclick="removeTodoItem('${item.id}')" class="text-slate-400 hover:text-rose-500 ml-2">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </li>
+      `).join('');
+    }
+
+    // 3. 폼 제출 (신규 추가 또는 수정 반영)
+    function handleFormSubmit(e) {
+      e.preventDefault();
+
+      const taskId = document.getElementById('editTaskId').value;
+      const subject = document.getElementById('selectedSubject').value;
+      const title = document.getElementById('taskTitle').value.trim();
+      const date = document.getElementById('taskDate').value;
+
+      if (!subject) {
+        alert('과목을 선택해주세요!');
+        return;
+      }
+
+      if (taskId) {
+        // 수정 모드
+        const idx = tasks.findIndex(t => t.id === taskId);
+        if (idx !== -1) {
+          tasks[idx] = {
+            ...tasks[idx],
+            subject,
+            title,
+            date,
+            todos: [...currentTodoItems]
+          };
+        }
+      } else {
+        // 새로 추가 모드
+        const newTask = {
+          id: Date.now().toString(),
+          subject,
+          title,
+          date,
+          todos: [...currentTodoItems]
+        };
+        tasks.push(newTask);
+      }
+
+      saveLocalStorage();
+      resetForm();
+      
+      // 입력된 날짜의 달력 달로 이동
+      if (date) {
+        const [y, m] = date.split('-').map(Number);
+        currentDate = new Date(y, m - 1, 1);
+      }
+
+      renderCalendar();
+      renderTaskList();
+      renderDDayCards();
+    }
+
+    // 수정 모드 진입
+    function editTask(id) {
+      const task = tasks.find(t => t.id === id);
+      if (!task) return;
+
+      closeModal();
+
+      document.getElementById('editTaskId').value = task.id;
+      document.getElementById('formTitle').innerText = '수행평가 수정';
+      document.getElementById('submitBtnText').innerText = '수정 내용 저장하기';
+      document.getElementById('cancelEditBtn').classList.remove('hidden');
+
+      selectSubject(task.subject);
+      document.getElementById('taskTitle').value = task.title;
+      document.getElementById('taskDate').value = task.date;
+
+      currentTodoItems = JSON.parse(JSON.stringify(task.todos || []));
+      renderFormTodoList();
+
+      // 스크롤 이동
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // 폼 초기화
+    function resetForm() {
+      document.getElementById('editTaskId').value = '';
+      document.getElementById('taskForm').reset();
+      document.getElementById('selectedSubject').value = '';
+      document.getElementById('formTitle').innerText = '수행평가 추가';
+      document.getElementById('submitBtnText').innerText = '표로 정리 (달력 반영)';
+      document.getElementById('cancelEditBtn').classList.add('hidden');
+      
+      document.querySelectorAll('.subject-chip').forEach(chip => {
+        chip.classList.remove('ring-2', 'ring-offset-1', 'ring-blue-500', 'scale-[1.05]');
+      });
+
+      currentTodoItems = [];
+      renderFormTodoList();
+    }
+
+    // 삭제 처리 (팝업창 없이 즉시 반영)
+    function deleteTask(id) {
+      tasks = tasks.filter(t => t.id !== id);
+      saveLocalStorage();
+      closeModal();
+      renderCalendar();
+      renderTaskList();
+      renderDDayCards();
+    }
+
+    // 4. 달력 렌더링
+    function renderCalendar() {
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+
+      document.getElementById('calendarTitle').innerText = `${year}년 ${month + 1}월`;
+
+      const firstDay = new Date(year, month, 1).getDay();
+      const lastDate = new Date(year, month + 1, 0).getDate();
+      const prevLastDate = new Date(year, month, 0).getDate();
+
+      const grid = document.getElementById('calendarGrid');
+      grid.innerHTML = '';
+
+      // 이전 달 날짜 채우기
+      for (let i = firstDay - 1; i >= 0; i--) {
+        const d = prevLastDate - i;
+        grid.innerHTML += `
+          <div class="min-h-[90px] p-1.5 bg-slate-50/50 rounded-xl border border-slate-100 text-slate-300 text-xs">
+            <span>${d}</span>
+          </div>
+        `;
+      }
+
+      // 현재 달 날짜 채우기
+      for (let day = 1; day <= lastDate; day++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const dayTasks = tasks.filter(t => t.date === dateStr);
+
+        const isToday = new Date().toISOString().split('T')[0] === dateStr;
+
+        let taskCardsHtml = dayTasks.map(t => {
+          const subjInfo = SUBJECTS.find(s => s.name === t.subject) || SUBJECTS[0];
+          return `
+            <div onclick="openModal('${t.id}')" 
+              class="p-1.5 rounded-lg text-xs cursor-pointer shadow-sm hover:opacity-90 transition-all border mb-1"
+              style="background-color: ${subjInfo.bg}; border-color: ${subjInfo.border}; color: ${subjInfo.text}">
+              <div class="font-bold truncate text-[11px]">
+                [${t.subject}] ${t.title}
+              </div>
+              ${t.todos && t.todos.length > 0 ? `
+                <div class="text-[10px] opacity-80 truncate mt-0.5">
+                  • ${t.todos[0].text}${t.todos.length > 1 ? `외 ${t.todos.length - 1}개` : ''}
+                </div>
+              ` : ''}
+            </div>
+          `;
+        }).join('');
+
+        grid.innerHTML += `
+          <div class="min-h-[95px] p-1.5 bg-white rounded-xl border ${isToday ? 'border-blue-500 ring-1 ring-blue-500' : 'border-slate-200/70'} flex flex-col justify-between hover:border-slate-300 transition-all">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs font-bold ${isToday ? 'bg-blue-600 text-white w-5 h-5 rounded-full flex items-center justify-center' : 'text-slate-700'}">${day}</span>
+              ${dayTasks.length > 0 ? `<span class="text-[10px] font-extrabold text-blue-600 bg-blue-50 px-1.5 py-0.2 rounded-full">${dayTasks.length}건</span>` : ''}
+            </div>
+            <div class="flex-1 overflow-y-auto custom-scrollbar max-h-[70px]">
+              ${taskCardsHtml}
+            </div>
+          </div>
+        `;
+      }
+
+      // 다음 달 남은 셀 채우기
+      const totalCells = firstDay + lastDate;
+      const nextDays = (42 - totalCells) % 7;
+      for (let i = 1; i <= nextDays; i++) {
+        grid.innerHTML += `
+          <div class="min-h-[90px] p-1.5 bg-slate-50/50 rounded-xl border border-slate-100 text-slate-300 text-xs">
+            <span>${i}</span>
+          </div>
+        `;
+      }
+    }
+
+    function changeMonth(delta) {
+      currentDate.setMonth(currentDate.getMonth() + delta);
+      renderCalendar();
+    }
+
+    function goToday() {
+      currentDate = new Date();
+      renderCalendar();
+    }
+
+    // 5. 등록된 수행평가 리스트 렌더링
+    function renderTaskList() {
+      const container = document.getElementById('taskListContainer');
+      document.getElementById('taskCountBadge').innerText = tasks.length;
+
+      if (tasks.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-8 text-slate-400 text-xs">
+            <i class="fa-regular fa-folder-open text-2xl mb-2 block"></i>
+            등록된 수행평가가 없습니다.
+          </div>
+        `;
+        return;
+      }
+
+      // 날짜 오름차순 정렬
+      const sorted = [...tasks].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      container.innerHTML = sorted.map(t => {
+        const subj = SUBJECTS.find(s => s.name === t.subject) || SUBJECTS[0];
+        return `
+          <div class="p-3 bg-slate-50 rounded-xl border border-slate-200/70 hover:border-slate-300 transition-all flex items-center justify-between gap-2">
+            <div class="flex-1 min-w-0" onclick="openModal('${t.id}')" style="cursor:pointer">
+              <div class="flex items-center gap-1.5 mb-1">
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold" style="background-color: ${subj.bg}; color: ${subj.text}; border: 1px solid ${subj.border}">
+                  ${t.subject}
+                </span>
+                <span class="text-xs font-bold text-slate-700 truncate">${t.title}</span>
+              </div>
+              <div class="text-[11px] text-slate-400 flex items-center gap-2">
+                <span><i class="fa-regular fa-calendar"></i> ${t.date}</span>
+                <span>• 할 일 ${t.todos ? t.todos.length : 0}개</span>
+              </div>
+            </div>
+            <div class="flex items-center space-x-1">
+              <button onclick="editTask('${t.id}')" class="p-1.5 text-slate-400 hover:text-blue-600 rounded-lg transition-all" title="수정">
+                <i class="fa-solid fa-pen text-xs"></i>
+              </button>
+              <button onclick="deleteTask('${t.id}')" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition-all" title="삭제">
+                <i class="fa-solid fa-trash-can text-xs"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // 6. D-Day 카드 렌더링
+    function renderDDayCards() {
+      const container = document.getElementById('ddayContainer');
+      if (tasks.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full text-center py-4 text-xs text-slate-400">
+            일정을 등록하면 D-Day 카드가 표시됩니다.
+          </div>
+        `;
+        return;
+      }
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const upcoming = [...tasks]
+        .map(t => {
+          const target = new Date(t.date);
+          target.setHours(0, 0, 0, 0);
+          const diffTime = target - today;
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          return { ...t, diffDays };
+        })
+        .sort((a, b) => a.diffDays - b.diffDays);
+
+      container.innerHTML = upcoming.slice(0, 3).map(t => {
+        const subj = SUBJECTS.find(s => s.name === t.subject) || SUBJECTS[0];
+        let ddayBadge = '';
+        if (t.diffDays === 0) {
+          ddayBadge = `<span class="px-2 py-0.5 rounded-full text-xs font-black bg-rose-500 text-white animate-pulse">D-Day</span>`;
+        } else if (t.diffDays > 0) {
+          ddayBadge = `<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-700">D-${t.diffDays}</span>`;
+        } else {
+          ddayBadge = `<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-slate-200 text-slate-500">지남</span>`;
+        }
+
+        return `
+          <div onclick="openModal('${t.id}')" class="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 hover:shadow-sm cursor-pointer transition-all flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold" style="background-color: ${subj.bg}; color: ${subj.text}">
+                ${t.subject}
+              </span>
+              ${ddayBadge}
+            </div>
+            <h4 class="font-bold text-xs text-slate-800 mb-1 truncate">${t.title}</h4>
+            <p class="text-[11px] text-slate-400">${t.date}</p>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // 7. 세부 모달 관련
+    function openModal(id) {
+      const task = tasks.find(t => t.id === id);
+      if (!task) return;
+
+      activeModalTaskId = id;
+      const subj = SUBJECTS.find(s => s.name === task.subject) || SUBJECTS[0];
+
+      const badge = document.getElementById('modalSubjectBadge');
+      badge.innerText = task.subject;
+      badge.style.backgroundColor = subj.bg;
+      badge.style.color = subj.text;
+
+      document.getElementById('modalTitle').innerText = task.title;
+      document.getElementById('modalDate').innerText = task.date;
+
+      const todoList = document.getElementById('modalTodoList');
+      if (!task.todos || task.todos.length === 0) {
+        todoList.innerHTML = `<p class="text-xs text-slate-400 italic">등록된 할 일이 없습니다.</p>`;
+      } else {
+        todoList.innerHTML = task.todos.map(todo => `
+          <div class="flex items-center gap-2 text-xs py-1">
+            <input type="checkbox" ${todo.completed ? 'checked' : ''} 
+              onchange="toggleTodoStatus('${task.id}', '${todo.id}')"
+              class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-4 w-4">
+            <span class="${todo.completed ? 'completed-todo' : 'text-slate-700'} flex-1">${todo.text}</span>
+          </div>
+        `).join('');
+      }
+
+      document.getElementById('modalEditBtn').onclick = () => editTask(id);
+      document.getElementById('modalDeleteBtn').onclick = () => deleteTask(id);
+
+      document.getElementById('detailModal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('detailModal').classList.add('hidden');
+      activeModalTaskId = null;
+    }
+
+    function toggleTodoStatus(taskId, todoId) {
+      const task = tasks.find(t => t.id === taskId);
+      if (!task) return;
+
+      const todo = task.todos.find(td => td.id === todoId);
+      if (todo) {
+        todo.completed = !todo.completed;
+        saveLocalStorage();
+        openModal(taskId);
+        renderCalendar();
+      }
+    }
+
+    // LocalStorage 저장 및 로드
+    function saveLocalStorage() {
+      localStorage.setItem('soohaeng_helper_tasks', JSON.stringify(tasks));
+    }
+
+    function loadLocalStorage() {
+      const saved = localStorage.getItem('soohaeng_helper_tasks');
+      if (saved) {
+        try {
+          tasks = JSON.parse(saved);
+        } catch (e) {
+          tasks = [];
+        }
+      } else {
+        loadDemoData();
+      }
+    }
+
+    // 예시 데이터 채우기
+    function loadDemoData() {
+      tasks = [
+        {
+          id: 'demo-1',
+          subject: '역사',
+          title: '조선 시대 사회상 보고서',
+          date: '2026-10-14',
+          todos: [
+            { id: 'dt-1', text: '도서관 관련 자료 조사', completed: true },
+            { id: 'dt-2', text: '보고서 개요 및 결론 작성', completed: false }
+          ]
+        },
+        {
+          id: 'demo-2',
+          subject: '영어',
+          title: '3분 자유 주제 말하기',
+          date: '2026-10-14',
+          todos: [
+            { id: 'dt-3', text: '영문 대본 작성하기', completed: true },
+            { id: 'dt-4', text: '발음 교정 및 3분 암기 연습', completed: false }
+          ]
+        },
+        {
+          id: 'demo-3',
+          subject: '수학',
+          title: '서술형 문제 풀이 평가',
+          date: '2026-10-16',
+          todos: [
+            { id: 'dt-5', text: '교과서 3단원 대표 예제 다시 풀기', completed: false }
+          ]
+        },
+        {
+          id: 'demo-4',
+          subject: '과학',
+          title: '화학 반응 실험 보고서',
+          date: '2026-10-21',
+          todos: [
+            { id: 'dt-6', text: '실험 데이터 테이블 정리', completed: false },
+            { id: 'dt-7', text: '결론 도출 및 소감 작성', completed: false }
+          ]
+        }
+      ];
+      currentDate = new Date(2026, 9, 1); // 2026년 10월로 고정 설정
+      saveLocalStorage();
+      renderCalendar();
+      renderTaskList();
+      renderDDayCards();
+    }
+
+    // 전체 삭제 (확인창 없이 클릭 즉시)
+    function clearAllData() {
+      tasks = [];
+      saveLocalStorage();
+      resetForm();
+      renderCalendar();
+      renderTaskList();
+      renderDDayCards();
+    }
+  </script>
+</body>
+</html>
